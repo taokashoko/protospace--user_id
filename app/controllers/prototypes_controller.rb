@@ -1,18 +1,18 @@
 class PrototypesController < ApplicationController
-  before_action :authenticate_user!, only: [:new, :create, :edit, :update, :destroy]
-  before_action :set_prototype, only: [:show, :edit, :update, :destroy]
+  before_action :authenticate_user!, except: [:index, :show]
+  before_action :set_prototype, except: [:index, :new, :create]
   before_action :check_prototype_author, only: [:edit, :update, :destroy]
-  before_action :move_to_index, except: [:index, :show]
   def index
-    @prototypes = Prototype.all # すべてのプロトタイプを取得
+    @prototypes = Prototype.includes(:user)
   end
+
 
   def new
     @prototype = Prototype.new # 空のプロトタイプを作成
   end
 
   def create
-    @prototype = current_user.prototypes.build(prototype_params)
+    @prototype = Prototype.new(prototype_params)
     if @prototype.save
       redirect_to root_path
     else
@@ -21,15 +21,16 @@ class PrototypesController < ApplicationController
   end
 
   def destroy
-    @prototype = Prototype.find(params[:id])
-    @prototype.destroy
-    redirect_to root_path
+    if @prototype.destroy
+      redirect_to root_path
+    else
+      redirect_to root_path
+    end
   end
 
   def show
-    @prototype = Prototype.find(params[:id])
     @comment = Comment.new
-    @comments = @prototype.comments.includes(:user)
+    @comments = @prototype.comments
   end
 
   def edit
@@ -37,7 +38,6 @@ class PrototypesController < ApplicationController
   end
 
   def update
-    @prototype = Prototype.find(params[:id])
     if @prototype.update(prototype_params)
       redirect_to @prototype
     else
@@ -45,24 +45,15 @@ class PrototypesController < ApplicationController
     end
   end
 
-  def move_to_index
-    unless user_signed_in?
-      redirect_to action: :index
-    end
-  end
 
   private
 
   def prototype_params
-    params.require(:prototype).permit(:title, :catch_copy, :concept, :image)
+    params.require(:prototype).permit(:title, :catch_copy, :concept, :image).merge(user_id: current_user.id)
   end
 
   def check_prototype_author
-    @prototype = Prototype.find(params[:id])
-    unless user_signed_in? && current_user.id == @prototype.user_id
-      flash[:alert] = '編集権限がありません'
-      redirect_to root_path
-    end
+    redirect_to root_path unless current_user == @prototype.user
   end
 
   def set_prototype
